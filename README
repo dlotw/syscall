@@ -1,0 +1,61 @@
+- Describe all design decisions. 
+
+Use getopt(3) to pass arguments into user program ./xcipher, validate all the 
+parameters, including number of args, checking whether file exits, comparing 
+input output file, etc.
+
+In kernel, first validate void* and copy arguments from user land if 
+checking succeeded. Read input file by block size, xcrypt the block and
+write to output file. Deal with the last part and delete partial output 
+file if failed halfway.
+
+
+
+- How do you select the key size? 
+
+User password must be longer than 6 char. Hash the password by MD5 function 
+in openssl in user land. The length is DEFAULT_KEY_LEN defined in xcrypt.h, 
+which is 16. Then in kernel space, hash it again. The final size is 16 Bytes, 
+same as cipher block size of aes in CryptpAPI for convenience.
+
+
+
+- How do you handle files that are not a multiple of the cipher block 
+encoding size? What do you store in the preamble?
+
+In the last PAGE_SIZE buffer, there could be one last block smaller than the cipher
+block size, Padding it with char of len(cipher block)-len(last block), then feed
+it to CryptpAPI. 
+I copied functions in net/ceph/crypto.c and modified them as aes_encrypt and
+aes_decrypt.
+In preamble, store the key hashed twice both in user and kernel land.
+
+Note:
+I referred the pattern in this github repo: credits to: JunXing Yang     
+https://github.com/piekill/os_homework1/blob/master/xcrypt.c                 
+I copied delete_partial_file function, referred the way to operate on preamble.
+I changed the way to do encryption and decryption, way to pass and check      
+arguments. I refer 'fs/namei.c' to use vfs_unlink.
+
+This syscall could handle empty file well, but the encrypted file is indeed not
+empty, because of the preamble there. Also, in order to verify the preamble more
+easily, I converted the bit file to readable string.
+
+Other reference:
+https://github.com/jaisong87/xcrypt
+https://github.com/ksudhir007/xcrypt-system-call
+http://kernel-seeds.org
+http://www.di-mgt.com.au/cryptopad.html
+http://www-numi.fnal.gov/offline_software/srt_public_context/
+
+                                                                             
+- Extra credit
+
+For User space file checking, I took use some functions from Blowfish 
+Cipher Tool. Credeits to Author: Cody Moore. 
+Source code: https://github.com/dotCipher/blowfish-tool.
+I did strict checking and avoid passing invalid parameters to kernel and wasting
+system resources. For instance, if they exist, if they are directory, if they
+are regular file, if they are the same path, symlinked or hardlinked.
+
+
